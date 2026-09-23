@@ -146,6 +146,30 @@ flowchart TB
 
 Метрики: MAE, RMSE, nRMSE (относительно установленной/номинальной мощности), skill score против baseline-персистенции ("прогноз = последнее известное значение") и против чистой power curve — агент должен быть лучше обеих.
 
+### 5.1 Реализовано и провалидировано
+
+`src/models/{schema,baseline,train}.py` → `scripts/train_models.py` → `outputs/models/{model_report.md, turbine_{1,2}_lgbm.txt}`.
+
+Финальная архитектура — **не** "ML напрямую на `power`", а именно вариант (2) "поверх остатков", и вот почему: первая попытка (LightGBM с L2-объективом напрямую на `power`, все 17 признаков) оказалась практически на уровне чистой power curve и даже чуть хуже по MAE (0.176 против 0.155) — это ожидаемый в литературе результат: калиброванная power curve — крайне сильный baseline для ВЭУ, и generic-бустинг с шумными вторичными признаками (давление, направление ветра, сезонность) не обязательно её обгоняет "в лоб". Дальше опробовали 2 независимых улучшения:
+
+1. **Остаточное моделирование**: `PowerCurveBaseline` (`src/models/baseline.py`) фитится на `wind_speed_100m → power` (кусочно-медианная кривая с `np.interp`-сглаживанием, **на том же forecast-признаке**, что видит модель на инференсе — не на истинной одновременной скорости ветра, иначе это было бы нечестно). LightGBM обучается предсказывать **остаток** `power − curve(wind_speed_100m)`; итоговый прогноз = `curve + clip(residual, ...)`. Если бустинг не находит полезной поправки, прогноз ровно равен baseline — модель физически не может быть хуже него на обучающем распределении.
+2. **objective="regression_l1"** вместо L2 по умолчанию: L2-объектив улучшал RMSE, но ухудшал MAE относительно кривой (классический L1/L2-trade-off); переход на MAE-объектив дал модель, которая обгоняет power curve **по всем трём метрикам сразу**.
+
+Time-based split: train `< 2026-01-01` (внутри train ещё выделен dev-срез с `2025-11-01` только для early stopping — по нему само число раундов бустинга не подглядывает в отчётную метрику), валидация = январь 2026 (последний полный месяц истории, отражает реальные условия — целиком после cutover `previous_runs`, т.е. без `reanalysis_proxy`).
+
+Итоговые метрики на валидации (январь 2026):
+
+| Turbine | lead | power_curve + lgbm_residual (MAE / RMSE / R²) | power_curve_baseline | persistence_baseline |
+|---|---|---|---|---|
+| 1 | 24ч | 0.1495 / 0.2175 / 0.583 | 0.1546 / 0.2190 / 0.577 | 0.382 / 0.499 / −1.20 |
+| 1 | 48ч | 0.1761 / 0.2484 / 0.456 | 0.1792 / 0.2501 / 0.448 | 0.360 / 0.471 / −0.96 |
+| 2 | 24ч | 0.1496 / 0.2179 / 0.583 | 0.1551 / 0.2215 / 0.570 | 0.384 / 0.500 / −1.19 |
+| 2 | 48ч | 0.1735 / 0.2455 / 0.471 | 0.1779 / 0.2493 / 0.454 | 0.353 / 0.465 / −0.90 |
+
+Итоговая модель обходит обе baseline-модели по всем метрикам, для обеих турбин, на обоих горизонтах; точность закономерно падает с 24ч к 48ч (как и должно быть физически); persistence — ожидаемо худший вариант (мощность ВЭС не является персистентной величиной на горизонте в сутки). Gain-based важность признаков (не split-count, который вводит в заблуждение, переоценивая high-cardinality `wind_direction_10m`) показывает, что модель осмысленно использует и скорость, и направление ветра, и сезонность/давление как поправку к кривой — не переобучается на шум.
+
+Один LightGBM per turbine (не per lead) — `lead_hours` передаётся как признак, чтобы модель сама выучила деградацию точности с горизонтом, как и планировалось изначально.
+
 ## 6. Agentic AI слой
 
 ### 6.1 Инструменты (tools) агента
@@ -215,18 +239,20 @@ flowchart TB
 │   ├── data/                 # schema.py (в т.ч. RAW_TIMESTAMP_UTC_OFFSET_HOURS), io.py, resample.py
 │   ├── weather/               # schema.py, cache.py, client.py — Open-Meteo клиент
 │   ├── features/              # schema.py, weather_features.py, build.py — сборка train-датасета
-│   ├── models/               # обучение, инференс, power curve baseline (следующий шаг)
-│   ├── agent/                 # tools + LangGraph orchestrator
+│   ├── models/               # schema.py, baseline.py (power curve), train.py (curve + LightGBM residual)
+│   ├── agent/                 # tools + LangGraph orchestrator (следующий шаг)
 │   └── pipeline/               # backtest_runner.py, realtime_runner.py
 ├── scripts/
 │   ├── run_eda.py                     # шаг 1: EDA + ресемплинг
 │   ├── run_weather_client_check.py    # шаг 2: проверка погодного клиента
-│   └── build_training_dataset.py       # шаг 3: сборка обучающего датасета
-├── notebooks/                   # подбор модели (при необходимости)
+│   ├── build_training_dataset.py       # шаг 3: сборка обучающего датасета
+│   └── train_models.py                  # шаг 4: baseline + LightGBM, time-based валидация
+├── notebooks/                   # (не понадобился — весь пайплайн в src/ + scripts/)
 ├── tests/
 ├── outputs/
 │   ├── eda/                     # eda_summary.md + plots/
 │   ├── weather/                  # weather_client_check.md
+│   ├── models/                    # model_report.md, turbine_{1,2}_lgbm.txt
 │   ├── dataset/                   # dataset_summary.md
 │   ├── forecasts/                # почасовые прогнозы (csv)
 │   └── run_logs/                   # журналы агентных запусков
@@ -238,7 +264,7 @@ flowchart TB
 1. **EDA + очистка истории** — качество данных, пропуски, curtailment, power curve по турбинам. ✅ Сделано: `scripts/run_eda.py`, `src/data/{schema,io,resample}.py` → `data/processed/turbine_{1,2}_hourly.parquet`, графики и `outputs/eda/eda_summary.md`. Ключевые находки: 10-мин данные без NaN/дублей; после ресемплинга в час ~6.5%/1.8% часов помечены `is_gap` (turbine 1/2 соответственно, из-за многодневных сбоев логгера в 2024); корреляция скорость ветра–мощность 0.95; ~1% часов помечены `curtailment_suspected` по отклонению от собственной эмпирической power curve турбины.
 2. **Погодный клиент** — обёртка над Open-Meteo (previous-runs + archive + forecast), кэширование ответов на диск (нужно и для скорости, и для воспроизводимости — "README и воспроизводимость" = 25 баллов). ✅ Сделано: `src/weather/`, `src/config.py`, `config/turbines.yaml` → проверено `scripts/run_weather_client_check.py` (см. раздел 6.4).
 3. **Сборка обучающего датасета**: сопоставить историческую выработку с архивным прогнозом погоды на соответствующий lead time (а не с фактической погодой) — это готовит модель к тем же условиям, что и на инференсе. ✅ Сделано: `src/features/{schema,weather_features,build}.py` → `scripts/build_training_dataset.py` → `data/processed/turbine_{1,2}_train.parquet` (46.9к/49.4к строк, обе lead-группы), отчёт `outputs/dataset/dataset_summary.md`. По пути найден и исправлен критический баг с часовым поясом сырых данных турбин (см. раздел 4.1.1) — без него корреляция ветер↔мощность в датасете была нефизично низкой (0.33–0.40); после фикса 0.66–0.70 и корректно убывает с горизонтом (24ч > 48ч).
-4. **Baseline (power curve) → ML-модель**, time-based валидация на январе 2026.
+4. **Baseline (power curve) → ML-модель**, time-based валидация на январе 2026. ✅ Сделано: `src/models/`, `scripts/train_models.py` → `outputs/models/model_report.md` (см. раздел 5.1). Итог: остаточная модель (power curve + LightGBM-поправка, MAE-объектив) стабильно обходит и чистую кривую, и persistence по MAE/RMSE/R² на обеих турбинах и обоих горизонтах.
 5. **Agent tools + orchestrator** (LangGraph state machine), логирование решений.
 6. **Backtest runner** на 31.01–27.02.2026, сборка итогового прогноза на весь февраль.
 7. **Метрики, графики, отчёт**.
