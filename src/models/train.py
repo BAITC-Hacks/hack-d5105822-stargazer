@@ -5,6 +5,16 @@ One LightGBM regressor per turbine, trained on BOTH lead-time groups
 should degrade from 24h to 48h, rather than needing two separate models.
 Compared against two baselines on the same held-out January-2026 slice:
 persistence (last known actual power) and the empirical power curve.
+
+Two design choices came out of an ablation (PLAN_AND_ARCHITECTURE.md 5.2),
+not just picked upfront:
+  - reanalysis_proxy training rows are dropped entirely (validation/backtest
+    are always previous_runs, and training on the mismatched regime hurt);
+  - the shipped artifact is a separate "production" refit on ALL data
+    through validation's end, reusing the boosting-round count early
+    stopping chose on the smaller reporting split -- the reported metrics
+    stay honest (never touch the extra data) while the deployed model
+    isn't stuck 3 months stale relative to what's available.
 """
 
 from typing import NamedTuple
@@ -84,8 +94,19 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
 
 def train_and_evaluate_turbine(turbine_id: int) -> dict:
     df = load_turbine_train_table(turbine_id)
-    for col in schema.CATEGORICAL_FEATURES:
-        df[col] = df[col].astype("category")
+
+    # Ablation (PLAN_AND_ARCHITECTURE.md section 5.2) showed training on the
+    # mixed regime (previous_runs forecasts + reanalysis_proxy actual-weather
+    # rows standing in for the pre-2024-02 archive gap) measurably hurts
+    # held-out MAE/RMSE/R2 versus training only on previous_runs, despite
+    # ~35% less data -- validation and the real backtest are ALWAYS
+    # previous_runs, so training on a distribution the model will never see
+    # at inference just adds noise. Drop it entirely.
+    n_before_filter = len(df)
+    df = df[df["weather_source"] == "previous_runs"].copy()
+    df["weather_source"] = df["weather_source"].astype(str).astype("category")
+    n_dropped_proxy = n_before_filter - len(df)
+
     train_fit, train_earlystop, validation = time_split(df)
 
     X_fit, y_fit = _prepare_X(train_fit), train_fit[feature_schema.TARGET_COLUMN]
@@ -113,7 +134,13 @@ def train_and_evaluate_turbine(turbine_id: int) -> dict:
         callbacks=[lgb.early_stopping(schema.EARLY_STOPPING_ROUNDS, verbose=False)],
     )
 
-    results = {"turbine_id": turbine_id, "n_train_fit": len(train_fit), "n_train_earlystop": len(train_earlystop), "by_lead": {}}
+    results = {
+        "turbine_id": turbine_id,
+        "n_train_fit": len(train_fit),
+        "n_train_earlystop": len(train_earlystop),
+        "n_dropped_proxy": n_dropped_proxy,
+        "by_lead": {},
+    }
 
     for lead_hours, group in validation.groupby("lead_hours"):
         y_true = group[feature_schema.TARGET_COLUMN].values
@@ -130,26 +157,54 @@ def train_and_evaluate_turbine(turbine_id: int) -> dict:
             "persistence_baseline": compute_metrics(y_true, persistence_pred),
         }
 
+    # `model` above is deliberately undertrained: train_fit stops at
+    # EARLY_STOP_START so the reported validation metrics are honest (the
+    # reporting model never saw the early-stopping dev set or January
+    # 2026). But that means the ARTIFACT saved from it would ship to the
+    # agent having never seen the most recent ~3 months of data -- the
+    # closest in season to the Feb-2026 backtest target, thrown away for
+    # no reason once the reporting metric has already been captured.
+    #
+    # Standard fix or Kaggle-style final-model practice: reuse the
+    # boosting-round count early stopping already chose (`best_iteration_`)
+    # as a FIXED n_estimators, then refit on every previous_runs row
+    # through the end of validation (2026-01-31) with no further early
+    # stopping needed. This production model/curve, not the reporting one,
+    # is what gets saved and used by the agent.
+    production_params = dict(schema.LGBM_PARAMS)
+    production_params["n_estimators"] = max(model.best_iteration_, 1)
+
+    all_data = df
+    X_all, y_all = _prepare_X(all_data), all_data[feature_schema.TARGET_COLUMN]
+    curve_production = PowerCurveBaseline().fit(all_data[schema.POWER_CURVE_FEATURE], y_all)
+    y_all_resid = y_all.values - curve_production.predict(all_data[schema.POWER_CURVE_FEATURE])
+
+    production_model = lgb.LGBMRegressor(**production_params)
+    production_model.fit(X_all, y_all_resid)
+
+    results["n_production_rows"] = len(all_data)
+    results["production_n_estimators"] = production_params["n_estimators"]
+
     # LightGBM's C++ save_model() chokes on non-ASCII characters anywhere in
     # the path (this repo lives under a Cyrillic Windows username), so the
     # model is serialized to a string in-process and written with Python's
     # own (Unicode-safe) file I/O instead.
     model_path = schema.MODELS_OUTPUT_DIR / schema.MODEL_FILENAME_TEMPLATE.format(turbine_id=turbine_id)
-    model_path.write_text(model.booster_.model_to_string(), encoding="utf-8")
+    model_path.write_text(production_model.booster_.model_to_string(), encoding="utf-8")
     results["model_path"] = str(model_path)
 
     curve_path = schema.MODELS_OUTPUT_DIR / schema.POWER_CURVE_FILENAME_TEMPLATE.format(turbine_id=turbine_id)
-    curve_baseline.save(curve_path)
+    curve_production.save(curve_path)
     results["power_curve_path"] = str(curve_path)
 
     # Gain, not split-count (the sklearn wrapper's default): split-count
     # over-ranks high-cardinality features like wind_direction purely
     # because they offer more distinct thresholds to split on, which made
     # an earlier pass look like the model was ignoring wind speed when gain
-    # showed the opposite.
-    importance = pd.Series(model.booster_.feature_importance(importance_type="gain"), index=X_fit.columns).sort_values(
-        ascending=False
-    )
+    # showed the opposite. Reported from the production model actually shipped.
+    importance = pd.Series(
+        production_model.booster_.feature_importance(importance_type="gain"), index=X_all.columns
+    ).sort_values(ascending=False)
     results["feature_importance"] = importance.to_dict()
 
     return results

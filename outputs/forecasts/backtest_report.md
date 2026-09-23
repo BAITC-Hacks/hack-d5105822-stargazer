@@ -15,7 +15,7 @@ Weather source: previous-runs API only (fixed 24h/48h lead, archived forecasts) 
 - Final Feb-2026 forecast coverage: 672/672 hours (100.0%)
 - Final forecast: `C:\Users\Даниал\Documents\ChatGPT\New project\outputs\forecasts\turbine_1_final.csv`
 - All-issues detail: `C:\Users\Даниал\Documents\ChatGPT\New project\outputs\forecasts\turbine_1_all_issues.csv`
-- Recompute-on-update evidence: for 648 hours forecast twice (once at lead=48h, again at lead=24h with fresher weather), the mean absolute revision was 0.1133 (max 0.9348) normalized power -- the agent materially changes its forecast as newer weather data becomes available.
+- Recompute-on-update evidence: for 648 hours forecast twice (once at lead=48h, again at lead=24h with fresher weather), the mean absolute revision was 0.1092 (max 0.9269) normalized power -- the agent materially changes its forecast as newer weather data becomes available.
 
 ## Turbine 2
 
@@ -26,4 +26,4 @@ Weather source: previous-runs API only (fixed 24h/48h lead, archived forecasts) 
 - Final Feb-2026 forecast coverage: 672/672 hours (100.0%)
 - Final forecast: `C:\Users\Даниал\Documents\ChatGPT\New project\outputs\forecasts\turbine_2_final.csv`
 - All-issues detail: `C:\Users\Даниал\Documents\ChatGPT\New project\outputs\forecasts\turbine_2_all_issues.csv`
-- Recompute-on-update evidence: for 648 hours forecast twice (once at lead=48h, again at lead=24h with fresher weather), the mean absolute revision was 0.1126 (max 0.9270) normalized power -- the agent materially changes its forecast as newer weather data becomes available.
+- Recompute-on-update evidence: for 648 hours forecast twice (once at lead=48h, again at lead=24h with fresher weather), the mean absolute revision was 0.1081 (max 0.9237) normalized power -- the agent materially changes its forecast as newer weather data becomes available.

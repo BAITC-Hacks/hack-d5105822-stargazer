@@ -7,7 +7,8 @@ For each turbine, trains one LightGBM regressor on the assembled training
 table (data/processed/turbine_<id>_train.parquet), using both lead-time
 groups with `lead_hours` as a feature. Evaluated on a held-out January
 2026 slice against two baselines (persistence, empirical power curve).
-Writes:
+The shipped model is a separate refit on all data (see src/models/train.py
+docstring for why). Writes:
   - outputs/models/turbine_<id>_lgbm.txt  (LightGBM native model file)
   - outputs/models/model_report.md
 """
@@ -41,7 +42,14 @@ def write_report(all_results: list[dict]) -> None:
         lines += [
             f"## Turbine {tid}",
             "",
-            f"- Train rows (fit): {res['n_train_fit']:,} | early-stopping dev rows: {res['n_train_earlystop']:,}",
+            f"- Dropped {res['n_dropped_proxy']:,} `reanalysis_proxy` rows before training "
+            "(ablation showed the mixed regime hurts -- see PLAN_AND_ARCHITECTURE.md 5.2).",
+            f"- Reporting fit: {res['n_train_fit']:,} rows (train) / {res['n_train_earlystop']:,} rows (early-stopping dev). "
+            "Metrics below are from THIS model, which never saw the dev set or January 2026.",
+            f"- Shipped/production model: refit on all {res['n_production_rows']:,} previous_runs rows through "
+            f"validation's end, with n_estimators fixed to the reporting fit's best_iteration_ "
+            f"({res['production_n_estimators']}) -- not the model the table below measures, but expected to be "
+            "at least as good on truly unseen data since it strictly has more, more-recent information.",
             f"- Model saved to `{res['model_path']}`",
             "",
             "| lead_hours | n_valid | model | MAE | RMSE | R2 |",

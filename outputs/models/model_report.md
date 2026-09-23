@@ -6,32 +6,36 @@ Time-based split: train < `2026-01-01` (early-stopping dev set from `2025-11-01`
 
 ## Turbine 1
 
-- Train rows (fit): 42,546 | early-stopping dev rows: 2,920
+- Dropped 16,156 `reanalysis_proxy` rows before training (ablation showed the mixed regime hurts -- see PLAN_AND_ARCHITECTURE.md 5.2).
+- Reporting fit: 26,390 rows (train) / 2,920 rows (early-stopping dev). Metrics below are from THIS model, which never saw the dev set or January 2026.
+- Shipped/production model: refit on all 30,744 previous_runs rows through validation's end, with n_estimators fixed to the reporting fit's best_iteration_ (54) -- not the model the table below measures, but expected to be at least as good on truly unseen data since it strictly has more, more-recent information.
 - Model saved to `C:\Users\Даниал\Documents\ChatGPT\New project\outputs\models\turbine_1_lgbm.txt`
 
 | lead_hours | n_valid | model | MAE | RMSE | R2 |
 |---|---|---|---|---|---|
-| 24 | 717 | power_curve + lgbm_residual | 0.1495 | 0.2175 | 0.5825 |
-| 24 | 717 | power_curve_baseline | 0.1546 | 0.2190 | 0.5770 |
+| 24 | 717 | power_curve + lgbm_residual | 0.1503 | 0.2154 | 0.5908 |
+| 24 | 717 | power_curve_baseline | 0.1552 | 0.2145 | 0.5940 |
 | 24 | 717 | persistence_baseline | 0.3820 | 0.4992 | -1.1986 |
-| 48 | 717 | power_curve + lgbm_residual | 0.1761 | 0.2484 | 0.4556 |
-| 48 | 717 | power_curve_baseline | 0.1792 | 0.2501 | 0.4480 |
+| 48 | 717 | power_curve + lgbm_residual | 0.1751 | 0.2449 | 0.4710 |
+| 48 | 717 | power_curve_baseline | 0.1793 | 0.2447 | 0.4717 |
 | 48 | 717 | persistence_baseline | 0.3598 | 0.4708 | -0.9554 |
 
-Top residual-model feature importances (gain): wind_direction_10m=29367, wind_speed_100m=20393, wind_speed_10m=17876, power_flux_proxy=15954, doy_cos=13389, surface_pressure=10873, weather_source=10558, doy_sin=10156
+Top residual-model feature importances (gain): wind_direction_10m=18572, wind_speed_10m=12489, power_flux_proxy=10700, surface_pressure=10441, doy_cos=9500, doy_sin=8458, wind_speed_100m=7846, air_density=6083
 
 ## Turbine 2
 
-- Train rows (fit): 45,042 | early-stopping dev rows: 2,890
+- Dropped 16,065 `reanalysis_proxy` rows before training (ablation showed the mixed regime hurts -- see PLAN_AND_ARCHITECTURE.md 5.2).
+- Reporting fit: 28,977 rows (train) / 2,890 rows (early-stopping dev). Metrics below are from THIS model, which never saw the dev set or January 2026.
+- Shipped/production model: refit on all 33,287 previous_runs rows through validation's end, with n_estimators fixed to the reporting fit's best_iteration_ (77) -- not the model the table below measures, but expected to be at least as good on truly unseen data since it strictly has more, more-recent information.
 - Model saved to `C:\Users\Даниал\Documents\ChatGPT\New project\outputs\models\turbine_2_lgbm.txt`
 
 | lead_hours | n_valid | model | MAE | RMSE | R2 |
 |---|---|---|---|---|---|
-| 24 | 710 | power_curve + lgbm_residual | 0.1496 | 0.2179 | 0.5833 |
-| 24 | 710 | power_curve_baseline | 0.1551 | 0.2215 | 0.5695 |
+| 24 | 710 | power_curve + lgbm_residual | 0.1483 | 0.2136 | 0.5994 |
+| 24 | 710 | power_curve_baseline | 0.1557 | 0.2170 | 0.5868 |
 | 24 | 710 | persistence_baseline | 0.3839 | 0.4996 | -1.1913 |
-| 48 | 710 | power_curve + lgbm_residual | 0.1735 | 0.2455 | 0.4708 |
-| 48 | 710 | power_curve_baseline | 0.1779 | 0.2493 | 0.4542 |
+| 48 | 710 | power_curve + lgbm_residual | 0.1687 | 0.2390 | 0.4985 |
+| 48 | 710 | power_curve_baseline | 0.1780 | 0.2435 | 0.4795 |
 | 48 | 710 | persistence_baseline | 0.3527 | 0.4649 | -0.8969 |
 
-Top residual-model feature importances (gain): wind_direction_10m=30399, power_flux_proxy=24470, wind_speed_100m=22600, wind_speed_10m=18119, doy_cos=17396, weather_source=12550, surface_pressure=12336, doy_sin=11295
+Top residual-model feature importances (gain): wind_direction_10m=21929, power_flux_proxy=14346, surface_pressure=14275, wind_speed_10m=13756, doy_sin=13310, doy_cos=11985, wind_speed_100m=9092, hour_cos=6016

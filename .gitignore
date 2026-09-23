@@ -5,3 +5,6 @@ __pycache__/
 
 # Open-Meteo response cache: regenerated automatically on the first run
 data/weather_cache/
+
+# Separate parallel redesign attempt, not part of this solution
+stargazer-v2/
