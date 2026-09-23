@@ -1,13 +1,13 @@
 # EDA / data pipeline
-pandas>=2.2
-numpy>=1.26
-matplotlib>=3.9
-pyarrow>=16.0
+pandas==3.0.6
+numpy==2.5.3
+matplotlib==3.11.2
+pyarrow==25.0.1
 
 # Weather client (Open-Meteo: previous-runs / archive / forecast)
-requests>=2.31
-pyyaml>=6.0
+requests==2.34.2
+pyyaml==6.0.3
 
 # Model training (src/models/, scripts/train_models.py)
-scikit-learn>=1.4
-lightgbm>=4.3
+scikit-learn==1.9.1
+lightgbm==4.7.0

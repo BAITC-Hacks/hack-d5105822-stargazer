@@ -48,6 +48,14 @@ def run_turbine_backtest(turbine_id: int) -> dict:
     hourly = load_turbine_hourly(turbine_id)
     power_clean = engineering.clean_power_series(hourly)
 
+    # persist_and_report only ever appends -- start this turbine's log clean
+    # so a rerun (e.g. after retraining the model) can't leave stale rows
+    # from a previous run sitting alongside fresh ones. Without this,
+    # final.csv's drop_duplicates(keep="first") could silently prefer an
+    # old prediction over a newer one for the same (lead_hours, valid_time).
+    all_issues_path = agent_schema.FORECASTS_DIR / f"turbine_{turbine_id}_all_issues.csv"
+    all_issues_path.unlink(missing_ok=True)
+
     verdict_counts = {}
     n_retried = 0
     n_failed = 0
@@ -61,7 +69,6 @@ def run_turbine_backtest(turbine_id: int) -> dict:
             if r["verdict"] == "failed_weather_fetch":
                 n_failed += 1
 
-    all_issues_path = agent_schema.FORECASTS_DIR / f"turbine_{turbine_id}_all_issues.csv"
     all_issues = pd.read_csv(all_issues_path, parse_dates=["valid_time"])
 
     in_test_period = all_issues[

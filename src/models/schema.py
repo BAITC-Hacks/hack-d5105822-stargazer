@@ -20,7 +20,6 @@ MODELS_OUTPUT_DIR = PROJECT_ROOT / "outputs" / "models"
 VALID_START = "2026-01-01"
 EARLY_STOP_START = "2025-11-01"  # carve-out inside the training period, for early stopping only
 
-CATEGORICAL_FEATURES = ["weather_source"]
 POWER_CURVE_FEATURE = "wind_speed_100m"
 PERSISTENCE_FEATURE = "lag_power_t0"
 
