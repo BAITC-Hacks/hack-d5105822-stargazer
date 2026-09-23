@@ -33,15 +33,22 @@ def write_summary(all_stats: list[dict], datasets: dict) -> None:
             f"- Final training rows (both lead groups combined): {len(df):,}",
             f"- Date range: {df['timestamp'].min()} -> {df['timestamp'].max()}",
             "",
-            "| lead_hours | full-coverage start | hours seen | excluded (is_gap) | excluded (curtailment) | kept | missing lag_power_t0 | weather sources |",
-            "|---|---|---|---|---|---|---|---|",
+            "| lead_hours | full-coverage start | hours seen | excluded (is_gap) | excluded (curtailment) | kept | missing lag_power_t0 | wind-power corr | weather sources |",
+            "|---|---|---|---|---|---|---|---|---|",
         ]
         for lead_hours, s in stats["by_lead"].items():
             sources = ", ".join(f"{k}={v}" for k, v in s["weather_source_counts"].items())
             lines.append(
                 f"| {lead_hours} | {s['coverage_start']} | {s['n_total_hours']:,} | {s['n_excluded_gap']:,} | "
-                f"{s['n_excluded_curtailment']:,} | {s['n_kept']:,} | {s['n_missing_lag_power_t0']:,} | {sources} |"
+                f"{s['n_excluded_curtailment']:,} | {s['n_kept']:,} | {s['n_missing_lag_power_t0']:,} | "
+                f"{s['wind_power_correlation']:.3f} | {sources} |"
             )
+        lines.append("")
+        lines.append(
+            "Sanity check: correlation should be strong and should DECREASE as lead_hours grows "
+            "(forecast uncertainty compounds with horizon). A value near 0 or flat across lead is the "
+            "signature of a turbine/weather timestamp misalignment."
+        )
         lines.append("")
         lines.append(f"Feature columns: `{', '.join(schema.FEATURE_COLUMNS)}`")
         lines.append(f"Target column: `{schema.TARGET_COLUMN}`")

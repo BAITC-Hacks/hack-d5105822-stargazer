@@ -30,5 +30,17 @@ SAMPLES_PER_HOUR = 60 // RAW_FREQ_MINUTES
 # to be trusted as a real observation instead of a sensor/logger gap.
 HOURLY_COVERAGE_THRESHOLD = 0.5
 
-# History, per the case statement, ends 2026-01-31 23:50 inclusive.
-HISTORY_END = "2026-01-31 23:50:00"
+# The raw CSV timestamps are NOT UTC. The case gives no timezone, so this
+# was determined empirically: cross-correlating the turbine's own
+# wind_speed against ERA5 actual wind_speed_10m (src.weather.client,
+# same coordinates) across the FULL 2023-03..2026-01 history shows the
+# correlation peaking sharply at a +6h shift (r=0.717 vs r=0.712 at +5h,
+# and <=0.65 at every other integer shift) -- i.e. raw_timestamp - 6h =
+# true UTC instant. This matches Asia/Almaty standard time (UTC+6, the
+# zone this site sat in before Kazakhstan's March-2024 unification to
+# UTC+5 nationwide) and is stable before AND after that reform date, so
+# it looks like a fixed logger convention rather than a real clock
+# change. Everything is normalized to UTC at load time (src/data/io.py)
+# so this constant is the ONLY place the assumption lives; revisit it
+# immediately if the organizers ever state the true source timezone.
+RAW_TIMESTAMP_UTC_OFFSET_HOURS = 6

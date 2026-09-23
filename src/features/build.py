@@ -136,6 +136,13 @@ def assemble_turbine_dataset(turbine_id: int) -> tuple[pd.DataFrame, dict]:
             "n_kept": len(clean),
             "n_missing_lag_power_t0": n_missing_lag,
             "weather_source_counts": clean["weather_source"].value_counts().to_dict(),
+            # Sanity check: wind-power correlation should be strong and should
+            # DEGRADE as lead_hours grows (forecast uncertainty compounds).
+            # A value near 0 or flat-across-lead here is the signature of a
+            # timestamp/timezone misalignment between turbine and weather data
+            # (this caught exactly that bug once already -- see
+            # PLAN_AND_ARCHITECTURE.md).
+            "wind_power_correlation": float(clean["wind_speed_100m"].corr(clean["power"])),
         })
         lead_frames.append(clean)
 
