@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+.claude/
+
+# Open-Meteo response cache: regenerated automatically on the first run
+data/weather_cache/
