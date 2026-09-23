@@ -1,0 +1,17 @@
+# Turbine coordinates, resolved from the Google Maps links given in the case
+# statement (HackAlem AI_ Agentic AI для прогнозирования выработки ВЭС.docx).
+# Location: ~43.64N 78.54E, Zhetysu region, Kazakhstan (matches the extreme
+# continental temperature range seen in the historical CSVs, -19..+44 C).
+turbines:
+  1:
+    name: "Turbine 1"
+    raw_csv: "Dataset HackAlemAI для участников 11.03.2023-28.02.2026 - turbine 1.csv"
+    latitude: 43.645150
+    longitude: 78.535604
+    source_maps_url: "https://maps.app.goo.gl/iN6svMt69D5qRpFU9"
+  2:
+    name: "Turbine 2"
+    raw_csv: "Dataset HackAlemAI для участников 11.03.2023-28.02.2026 - turbine 2.csv"
+    latitude: 43.643198
+    longitude: 78.538828
+    source_maps_url: "https://maps.app.goo.gl/8UQMwsYavY6nLvFY8"

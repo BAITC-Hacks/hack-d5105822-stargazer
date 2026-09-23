@@ -1,0 +1,14 @@
+# EDA / data pipeline
+pandas>=2.2
+numpy>=1.26
+matplotlib>=3.9
+pyarrow>=16.0
+
+# Weather client (Open-Meteo: previous-runs / archive / forecast)
+requests>=2.31
+pyyaml>=6.0
+
+# Next steps (modeling / agent) -- listed here so the environment can be
+# provisioned once; not yet used yet
+scikit-learn>=1.4
+lightgbm>=4.3
