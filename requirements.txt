@@ -8,7 +8,6 @@ pyarrow>=16.0
 requests>=2.31
 pyyaml>=6.0
 
-# Next steps (modeling / agent) -- listed here so the environment can be
-# provisioned once; not yet used yet
+# Model training (src/models/, scripts/train_models.py)
 scikit-learn>=1.4
 lightgbm>=4.3
