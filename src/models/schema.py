@@ -43,3 +43,4 @@ EARLY_STOPPING_ROUNDS = 50
 POWER_CURVE_BIN_WIDTH = 0.5
 
 MODEL_FILENAME_TEMPLATE = "turbine_{turbine_id}_lgbm.txt"
+POWER_CURVE_FILENAME_TEMPLATE = "turbine_{turbine_id}_power_curve.json"

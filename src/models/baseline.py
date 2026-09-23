@@ -8,6 +8,9 @@ turbine's true simultaneous wind), since that is the only input actually
 available at inference time.
 """
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -32,3 +35,15 @@ class PowerCurveBaseline:
         # the first/last known value outside the fitted range -- no NaNs,
         # no need to handle unseen bins separately.
         return np.interp(wind_speed.fillna(self.curve_.index.to_series().median()), self.curve_.index, self.curve_.values).clip(0, 1)
+
+    def save(self, path: Path) -> None:
+        payload = {"bin_width": self.bin_width, "curve": {str(k): v for k, v in self.curve_.items()}}
+        Path(path).write_text(json.dumps(payload), encoding="utf-8")
+
+    @classmethod
+    def load(cls, path: Path) -> "PowerCurveBaseline":
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        obj = cls(bin_width=payload["bin_width"])
+        curve = pd.Series({float(k): v for k, v in payload["curve"].items()}).sort_index()
+        obj.curve_ = curve
+        return obj

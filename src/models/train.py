@@ -7,6 +7,8 @@ Compared against two baselines on the same held-out January-2026 slice:
 persistence (last known actual power) and the empirical power curve.
 """
 
+from typing import NamedTuple
+
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
@@ -21,6 +23,35 @@ from src.models.baseline import PowerCurveBaseline
 def load_turbine_train_table(turbine_id: int) -> pd.DataFrame:
     path = data_schema.PROCESSED_DATA_DIR / feature_schema.TRAIN_PARQUET_TEMPLATE.format(turbine_id=turbine_id)
     return pd.read_parquet(path)
+
+
+class TrainedModel(NamedTuple):
+    """The two fitted artifacts needed to reproduce a prediction at
+    inference time: the residual booster and the curve it corrects.
+    """
+
+    turbine_id: int
+    booster: lgb.Booster
+    curve_baseline: PowerCurveBaseline
+
+
+def load_trained_model(turbine_id: int) -> TrainedModel:
+    model_path = schema.MODELS_OUTPUT_DIR / schema.MODEL_FILENAME_TEMPLATE.format(turbine_id=turbine_id)
+    curve_path = schema.MODELS_OUTPUT_DIR / schema.POWER_CURVE_FILENAME_TEMPLATE.format(turbine_id=turbine_id)
+    booster = lgb.Booster(model_str=model_path.read_text(encoding="utf-8"))
+    curve_baseline = PowerCurveBaseline.load(curve_path)
+    return TrainedModel(turbine_id=turbine_id, booster=booster, curve_baseline=curve_baseline)
+
+
+def predict(trained: TrainedModel, features: pd.DataFrame) -> np.ndarray:
+    """features must already have the columns in feature_schema.FEATURE_COLUMNS,
+    with `weather_source` as a `category` dtype matching training (see
+    src.agent.tools for how the agent builds this consistently).
+    """
+    X = features[feature_schema.FEATURE_COLUMNS]
+    curve_pred = trained.curve_baseline.predict(features[schema.POWER_CURVE_FEATURE])
+    residual_pred = trained.booster.predict(X)
+    return np.clip(curve_pred + residual_pred, 0, 1)
 
 
 def time_split(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -106,7 +137,10 @@ def train_and_evaluate_turbine(turbine_id: int) -> dict:
     model_path = schema.MODELS_OUTPUT_DIR / schema.MODEL_FILENAME_TEMPLATE.format(turbine_id=turbine_id)
     model_path.write_text(model.booster_.model_to_string(), encoding="utf-8")
     results["model_path"] = str(model_path)
-    results["power_curve"] = curve_baseline.curve_.to_dict()
+
+    curve_path = schema.MODELS_OUTPUT_DIR / schema.POWER_CURVE_FILENAME_TEMPLATE.format(turbine_id=turbine_id)
+    curve_baseline.save(curve_path)
+    results["power_curve_path"] = str(curve_path)
 
     # Gain, not split-count (the sklearn wrapper's default): split-count
     # over-ranks high-cardinality features like wind_direction purely
